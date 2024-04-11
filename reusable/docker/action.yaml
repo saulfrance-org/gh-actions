@@ -1,0 +1,22 @@
+name: 'Docker'
+
+description: 'Downloads and Installs Docker CLI'
+
+inputs:
+  DockerVersion:
+    description: "The version of Docker CLI to download and install"
+    required: false
+    type: string
+    default: 24.0.5
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Docker
+      shell: bash
+      run: |
+        apt-get update && apt-get install -y curl
+        docker_url=https://download.docker.com/linux/static/stable/x86_64
+        curl -fsSL $docker_url/docker-${{ inputs.DockerVersion }}.tgz | \
+        tar zxvf - --strip 1 -C /usr/bin docker/docker
+        docker -v

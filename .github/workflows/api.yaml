@@ -1,0 +1,70 @@
+name: API
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      ForceDeploy:
+        description: "Trigger deployment"
+        type: boolean
+        required: false
+        default: false
+jobs:
+  BUILD:
+    uses: ./.github/workflows/template-build.yaml
+    with:
+      # WorkingDirectory: "serverless"
+      # These should be changed to true ASAP when Scan and Testing failures
+      # are fixed
+      FailPipelineOnTestFail: false
+    secrets: inherit
+
+  DEPLOY_DEV:
+    name: Dev
+    needs: [BUILD]
+    if: ${{ github.ref == 'refs/heads/main' || inputs.ForceDeploy == true }}
+    runs-on: ubuntu-latest
+    environment: dev
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Run deploy
+        run: |
+          echo "Deploy here"
+
+  DEPLOY_QA:
+    name: QA
+    needs: [DEPLOY_DEV]
+    runs-on: ubuntu-latest
+    environment: qa
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Run deploy
+        run: |
+          echo "Deploy here"
+
+  DEPLOY_STAGING:
+    name: Staging
+    needs: [DEPLOY_QA]
+    runs-on: ubuntu-latest
+    environment: staging
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Run deploy
+        run: |
+          echo "Deploy here"
+
+  DEPLOY_PROD:
+    name: Production
+    needs: [DEPLOY_STAGING]
+    runs-on: ubuntu-latest
+    environment: production
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Run deploy
+        run: |
+          echo "Deploy here"
