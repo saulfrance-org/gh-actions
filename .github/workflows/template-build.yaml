@@ -1,0 +1,155 @@
+name: ~Build API
+
+on:
+  workflow_call:
+    inputs:
+      FailPipelineOnTestFail:
+        description: "Whether to fail the Pipeline if a test fails"
+        type: boolean
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  pull-requests: write
+  contents: write
+  statuses: write
+  checks: write
+  actions: write
+
+jobs:
+  BUILD-FARGATE:
+    name: Fargate services
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    # strategy:
+    #   matrix:
+    #     service-path: ${{ fromJSON(needs.setup.outputs.fargate) }}
+    env:
+      DOCKERFILE: dotnet-test/Dockerfile
+      BUILD_CONTEXT: "."
+    steps:
+      - name: Install Utils
+        run: |
+          apt-get update && apt-get install -y curl git
+
+      - uses: actions/checkout@v4
+
+      - name: Set Directory as Safe
+        run: |
+          git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: ./reusable/docker
+
+      - name: Build container image
+        env:
+          IMAGE_TAG: dotnet-test
+        run: |
+          docker build -t ${{ env.IMAGE_TAG }} -f ${{ env.DOCKERFILE }} ${{ env.BUILD_CONTEXT }}
+          docker save -o ${{ env.IMAGE_TAG }}.tar ${{ env.IMAGE_TAG }}
+
+      - name: Copy test results
+        continue-on-error: true
+        env:
+          IMAGE_TAG: dotnet-test
+        run: |
+          docker images --filter "label=test=true"
+          docker create --name testcontainer $(docker images --filter "label=test=true" -q)
+          docker cp testcontainer:/testresults ./testresults
+          docker rm testcontainer
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        with:
+          name: dotnet unit tests
+          path: testresults/*.trx
+          reporter: dotnet-trx
+          fail-on-error: ${{ inputs.FailPipelineOnTestFail }}
+          fail-on-empty: ${{ inputs.FailPipelineOnTestFail }}
+
+      - name: Generate coverage report
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: testresults/**/coverage.cobertura.xml
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: false
+          output: both
+
+      - name: Publish coverage report
+        run: |
+          echo "## Dotnet Code Coverage" >> $GITHUB_STEP_SUMMARY
+          cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
+
+  # BUILD-PYTHON-LAMBDAS:
+  #   name: Python Lambda
+  #   runs-on: ubuntu-latest
+  #   container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+  #   strategy:
+  #     matrix:
+  #       service-path: ["intro-to-pytest-master", "intro-to-pytest-master-2"]
+  #   steps:
+  #     - name: Install Utils
+  #       run: |
+  #         apt-get update && apt-get install -y curl git
+
+  #     - uses: actions/checkout@v4
+
+  #     - name: Set Directory as Safe
+  #       run: |
+  #         git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
+  #     - uses: ./reusable/docker
+
+  #     - name: Run builder containers
+  #       run: |
+  #         docker build -t spectrum-python-builder -f intro-to-pytest-master/Dockerfile .
+  #         docker run --rm -d --name spectrum-python-builder spectrum-python-builder:latest bash -c "sleep infinity"
+
+  #     - name: Run unit tests
+  #       continue-on-error: true
+  #       run: |
+  #         docker cp ${{ matrix.service-path }} spectrum-python-builder:lambdas
+  #         docker exec spectrum-python-builder bash -c "python3.9 -m venv lambdas"
+
+  #         docker exec spectrum-python-builder bash -c "source lambdas/bin/activate ; cd lambdas ; pip install -r requirements.txt"
+
+  #         docker exec spectrum-python-builder bash -c "source lambdas/bin/activate ; pip install pytest; pip install pytest-mock; pip install pytest-cov; pip install aws_lambda_powertools; pip install pydantic"
+
+  #         docker exec spectrum-python-builder bash -c "source lambdas/bin/activate ; cd lambdas ; pytest -s --junitxml=testresults/results.xml --cov --cov-report xml:testresults/coverage.xml"
+  #         docker exec spectrum-python-builder bash -c "ls lambdas/testresults"
+
+  #     - name: Copy test results
+  #       continue-on-error: true
+  #       run: |
+  #         docker cp spectrum-python-builder:/lambdas/testresults testresults
+
+  #     - name: Publish test report
+  #       uses: dorny/test-reporter@v1
+  #       with:
+  #         name: Lambda unit tests
+  #         path: testresults/results.xml
+  #         reporter: java-junit
+  #         fail-on-error: ${{ inputs.FailPipelineOnTestFail }}
+  #         fail-on-empty: ${{ inputs.FailPipelineOnTestFail }}
+
+  #     - name: Generate coverage report
+  #       uses: irongut/CodeCoverageSummary@v1.3.0
+  #       with:
+  #         filename: testresults/coverage.xml
+  #         format: markdown
+  #         hide_branch_rate: false
+  #         hide_complexity: false
+  #         output: both
+
+  #     - name: Publish coverage report
+  #       run: |
+  #         echo "## ${{ matrix.service-path }} Code Coverage" >> $GITHUB_STEP_SUMMARY
+  #         cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
+
+  #     - name: Stop containers
+  #       if: always()
+  #       run: |
+  #         docker kill spectrum-python-builder
