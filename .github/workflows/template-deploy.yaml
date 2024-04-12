@@ -1,0 +1,56 @@
+name: ~Deploy API
+
+on:
+  workflow_call:
+    inputs:
+      Environment:
+        description: "Environment to deploy to"
+        type: string
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  DEPLOY_APP1:
+    name: App 1
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.Environment }}
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Run deploy
+        run: |
+          echo "Deploy here"
+
+  DEPLOY_APP2:
+    name: App 2
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.Environment }}
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Run deploy
+        run: |
+          echo "Deploy here"
+
+  DEPLOY_TF_APPLY:
+    name: Terraform Apply
+    needs: [DEPLOY_APP1, DEPLOY_APP2]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.Environment }}
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Run deploy
+        run: |
+          echo "Deploy here"
+
+  DEPLOY_MIGRATIONS:
+    name: QA
+    needs: [DEPLOY_TF_APPLY]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.Environment }}
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Run deploy
+        run: |
+          echo "Deploy here"

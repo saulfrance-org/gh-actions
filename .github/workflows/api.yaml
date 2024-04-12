@@ -36,7 +36,7 @@ jobs:
         run: |
           echo "Deploy here"
 
-  DEPLOY_QA:
+  DEPLOY_QA_TF_PLAN:
     name: QA
     needs: [DEPLOY_DEV]
     runs-on: ubuntu-latest
@@ -47,9 +47,16 @@ jobs:
         run: |
           echo "Deploy here"
 
+  DEPLOY_QA:
+    needs: DEPLOY_DEV
+    uses: ./.github/workflows/template-deploy.yaml
+    with:
+      Environment: qa
+    secrets: inherit
+
   DEPLOY_STAGING:
     name: Staging
-    needs: [DEPLOY_QA]
+    needs: DEPLOY_QA
     runs-on: ubuntu-latest
     environment: staging
     container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
