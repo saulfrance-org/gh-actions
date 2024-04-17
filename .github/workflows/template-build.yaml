@@ -22,7 +22,7 @@ permissions:
 jobs:
   BUILD-FARGATE:
     name: Fargate services
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
     # strategy:
     #   matrix:
