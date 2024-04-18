@@ -20,8 +20,30 @@ permissions:
   actions: write
 
 jobs:
+  SETUP:
+    name: Setup
+    runs-on: self-hosted
+    container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
+    steps:
+      - name: Install Utils
+        run: |
+          apt-get update && apt-get install -y curl git
+
+      - uses: actions/checkout@v4
+
+      - name: Set Directory as Safe
+        run: |
+          git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: ./reusable/docker
+
+      - name: Build Python Builder
+        run: |
+          docker build -t spectrum-python-builder -f intro-to-pytest-master/Dockerfile .
+
   BUILD-FARGATE:
     name: Fargate services
+    needs: SETUP
     runs-on: self-hosted
     container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
     # strategy:
@@ -85,6 +107,7 @@ jobs:
 
   BUILD-PYTHON-LAMBDAS:
     name: Python Lambda
+    needs: SETUP
     runs-on: self-hosted
     container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
     strategy:
@@ -105,26 +128,25 @@ jobs:
 
       - name: Run builder containers
         run: |
-          docker build -t spectrum-python-builder -f intro-to-pytest-master/Dockerfile .
-          docker run --rm -d --name spectrum-python-builder spectrum-python-builder:latest bash -c "sleep infinity"
+          docker run --rm -d --name ${{ matrix.service-path }}-builder spectrum-python-builder:latest bash -c "sleep infinity"
 
       - name: Run unit tests
         continue-on-error: true
         run: |
-          docker cp ${{ matrix.service-path }} spectrum-python-builder:lambdas
-          docker exec spectrum-python-builder bash -c "python3.9 -m venv lambdas"
+          docker cp ${{ matrix.service-path }} ${{ matrix.service-path }}-builder:lambdas
+          docker exec ${{ matrix.service-path }}-builder bash -c "python3.9 -m venv lambdas"
 
-          docker exec spectrum-python-builder bash -c "source lambdas/bin/activate ; cd lambdas ; pip install -r requirements.txt"
+          docker exec ${{ matrix.service-path }}-builder bash -c "source lambdas/bin/activate ; cd lambdas ; pip install -r requirements.txt"
 
-          docker exec spectrum-python-builder bash -c "source lambdas/bin/activate ; pip install pytest; pip install pytest-mock; pip install pytest-cov; pip install aws_lambda_powertools; pip install pydantic"
+          docker exec ${{ matrix.service-path }}-builder bash -c "source lambdas/bin/activate ; pip install pytest; pip install pytest-mock; pip install pytest-cov; pip install aws_lambda_powertools; pip install pydantic"
 
-          docker exec spectrum-python-builder bash -c "source lambdas/bin/activate ; cd lambdas ; pytest -s --junitxml=testresults/results.xml --cov --cov-report xml:testresults/coverage.xml"
-          docker exec spectrum-python-builder bash -c "ls lambdas/testresults"
+          docker exec ${{ matrix.service-path }}-builder bash -c "source lambdas/bin/activate ; cd lambdas ; pytest -s --junitxml=testresults/results.xml --cov --cov-report xml:testresults/coverage.xml"
+          docker exec ${{ matrix.service-path }}-builder bash -c "ls lambdas/testresults"
 
       - name: Copy test results
         continue-on-error: true
         run: |
-          docker cp spectrum-python-builder:/lambdas/testresults testresults
+          docker cp ${{ matrix.service-path }}-builder:/lambdas/testresults testresults
 
       - name: Publish test report
         uses: dorny/test-reporter@v1
@@ -152,4 +174,4 @@ jobs:
       - name: Stop containers
         if: always()
         run: |
-          docker kill spectrum-python-builder
+          docker kill ${{ matrix.service-path }}-builder
