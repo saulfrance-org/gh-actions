@@ -112,7 +112,13 @@ jobs:
     container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
     strategy:
       matrix:
-        service-path: ["intro-to-pytest-master", "intro-to-pytest-master-2"]
+        service-path:
+          [
+            "intro-to-pytest-master",
+            "intro-to-pytest-master-2",
+            "intro-to-pytest-master-3",
+            "intro-to-pytest-master-4",
+          ]
     steps:
       - name: Install Utils
         run: |
