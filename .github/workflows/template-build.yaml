@@ -85,7 +85,7 @@ jobs:
 
   BUILD-PYTHON-LAMBDAS:
     name: Python Lambda
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: mcr.microsoft.com/powershell:7.4-debian-bullseye-slim
     strategy:
       matrix:
